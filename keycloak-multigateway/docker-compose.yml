@@ -1,0 +1,253 @@
+version: '3'
+
+volumes:
+  kongA_data:
+      driver: local
+  kongB_data:
+      driver: local
+  keycloak_data:
+      driver: local
+
+services:
+  traefik:
+    image: traefik:v2.2
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    networks:
+      default:
+        aliases:
+          # This allows the other containers to also reach the services through
+          # this public address (as opposed to using hostnames)
+          - kongA.localhost
+          - kongB.localhost
+          - keycloak.localhost
+          - httpbinA.kong.localhost
+          - httpbinB.kong.localhost
+
+  # Kong
+  kongA-migrations:
+    image: kong:2.0.2-centos-oidc
+    command: kong migrations bootstrap
+    depends_on:
+      - kongA-db
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+      KONG_PG_HOST: kongA-db
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD:-kong}
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+    restart: on-failure
+
+  kongA-migrations-up:
+    image: kong:2.0.2-centos-oidc
+    command: kong migrations up && kong migrations finish
+    depends_on:
+      - kongA-db
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+      KONG_PG_HOST: kongA-db
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD:-kong}
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+    restart: on-failure
+
+  kongA:
+    build: ./compose/kong
+    image: kong:2.0.2-centos-oidc
+    user: "${KONG_USER:-kong}"
+    depends_on:
+      - kongA-db
+    environment:
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: '0.0.0.0:8001'
+      KONG_DATABASE: postgres
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+      KONG_PG_HOST: kongA-db
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD:-kong}
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_PLUGINS: oidc
+    ports:
+      - "8001:8001/tcp"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: on-failure
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kongA.rule=HostRegexp(`kongA.localhost`, `{subdomain:[a-z0-9]+}.kongA.localhost`)"
+      - "traefik.http.routers.kongA.tls=true"
+      - "traefik.http.routers.kongA.tls.domains[0].main=kongA.localhost"
+      - "traefik.http.routers.kongA.entrypoints=websecure"
+      - "traefik.http.services.kongA.loadbalancer.server.port=8000"
+
+  kongA-db:
+    image: postgres:9.5
+    environment:
+      POSTGRES_DB: ${KONG_PG_DATABASE:-kong}
+      POSTGRES_PASSWORD: ${KONG_PG_PASSWORD:-kong}
+      POSTGRES_USER: ${KONG_PG_USER:-kong}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${KONG_PG_USER:-kong}"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    restart: on-failure
+    stdin_open: true
+    tty: true
+    volumes:
+      - kongA_data:/var/lib/postgresql/data
+
+  kongB-migrations:
+    image: kong:2.0.2-centos-oidc
+    command: kong migrations bootstrap
+    depends_on:
+      - kongB-db
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+      KONG_PG_HOST: kongB-db
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD:-kong}
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+    restart: on-failure
+
+  kongB-migrations-up:
+    image: kong:2.0.2-centos-oidc
+    command: kong migrations up && kong migrations finish
+    depends_on:
+      - kongB-db
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+      KONG_PG_HOST: kongB-db
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD:-kong}
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+    restart: on-failure
+
+  kongB:
+    build: ./compose/kong
+    image: kong:2.0.2-centos-oidc
+    user: "${KONG_USER:-kong}"
+    depends_on:
+      - kongB-db
+    environment:
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: '0.0.0.0:8001'
+      KONG_DATABASE: postgres
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+      KONG_PG_HOST: kongB-db
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD:-kong}
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_PLUGINS: oidc
+    ports:
+      - "9001:8001/tcp"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: on-failure
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.kongB.rule=HostRegexp(`kongB.localhost`, `{subdomain:[a-z0-9]+}.kongB.localhost`)"
+      - "traefik.http.routers.kongB.tls=true"
+      - "traefik.http.routers.kongB.tls.domains[0].main=kongB.localhost"
+      - "traefik.http.routers.kongB.entrypoints=websecure"
+      - "traefik.http.services.kongB.loadbalancer.server.port=8000"
+
+  kongB-db:
+    image: postgres:9.5
+    environment:
+      POSTGRES_DB: ${KONG_PG_DATABASE:-kong}
+      POSTGRES_PASSWORD: ${KONG_PG_PASSWORD:-kong}
+      POSTGRES_USER: ${KONG_PG_USER:-kong}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "${KONG_PG_USER:-kong}"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    restart: on-failure
+    stdin_open: true
+    tty: true
+    volumes:
+      - kongB_data:/var/lib/postgresql/data
+
+  konga:
+    image: pantsel/konga:0.14.7
+    ports:
+      - "1337:1337"
+    volumes:
+      - ./compose/konga/connections.data:/connections.data
+    environment:
+      NO_AUTH: "true"
+      KONGA_SEED_KONG_NODE_DATA_SOURCE_FILE: /connections.data
+
+  keycloak-db:
+    image: postgres
+    volumes:
+      - keycloak_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password
+
+  keycloak:
+    image: jboss/keycloak:11.0.3
+    depends_on:
+      - keycloak-db
+    environment:
+      DB_VENDOR: POSTGRES
+      DB_ADDR: keycloak-db
+      DB_DATABASE: keycloak
+      DB_USER: keycloak
+      DB_SCHEMA: public
+      DB_PASSWORD: password
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: password
+    depends_on:
+      - keycloak-db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.keycloak.rule=HostSNI(`keycloak.localhost`)"
+      - "traefik.tcp.routers.keycloak.tls.passthrough=true"
+      - "traefik.tcp.routers.keycloak.entrypoints=websecure"
+      - "traefik.tcp.services.keycloak.loadbalancer.server.port=8443"
+
+  httpbinA:
+    image: kennethreitz/httpbin:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.httpbinA.rule=Host(`httpbinA.localhost`)"
+      - "traefik.http.routers.httpbinA.tls=true"
+      - "traefik.http.routers.httpbinA.tls.domains[0].main=httpbinA.localhost"
+      - "traefik.http.routers.httpbinA.entrypoints=websecure"
+      - "traefik.http.services.httpbinA.loadbalancer.server.port=80"
+
+  httpbinB:
+    image: kennethreitz/httpbin:latest
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.httpbinB.rule=Host(`httpbinB.localhost`)"
+      - "traefik.http.routers.httpbinB.tls=true"
+      - "traefik.http.routers.httpbinB.tls.domains[0].main=httpbinB.localhost"
+      - "traefik.http.routers.httpbinB.entrypoints=websecure"
+      - "traefik.http.services.httpbinB.loadbalancer.server.port=80"

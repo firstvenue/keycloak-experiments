@@ -1,0 +1,12 @@
+module.exports = [
+    {
+        "name": "kongA",
+        "type": "default",
+        "kong_admin_url": "http://kongA:8001"
+    },
+    {
+        "name": "kongB",
+        "type": "default",
+        "kong_admin_url": "http://kongB:8001"
+    }
+]
