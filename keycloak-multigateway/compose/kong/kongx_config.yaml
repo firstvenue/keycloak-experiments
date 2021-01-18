@@ -1,0 +1,59 @@
+_format_version: "1.1"
+services:
+- connect_timeout: 60000
+  host: petstore-envoy
+  name: petstore
+  port: 80
+  protocol: http
+  read_timeout: 60000
+  retries: 5
+  write_timeout: 60000
+  routes:
+  - hosts:
+    - petstore.kongx.localhost
+    id: 0e724101-cf82-4bb0-8bfe-4efa3746e898
+    path_handling: v0
+    preserve_host: false
+    protocols:
+    - http
+    - https
+    regex_priority: 0
+    strip_path: true
+    https_redirect_status_code: 426
+  plugins:
+  - name: oidc
+    config:
+      access_token_header_as_bearer: "no"
+      access_token_header_name: X-Access-Token
+      bearer_only: "no"
+      client_id: petstore
+      client_secret: 30d7e92f-0628-4180-a335-4e6732e2826e
+      disable_access_token_header: "no"
+      disable_id_token_header: "no"
+      disable_userinfo_header: "no"
+      discovery: https://keycloak.localhost/auth/realms/master/.well-known/openid-configuration
+      filters: null
+      id_token_header_name: X-ID-Token
+      ignore_auth_filters: ""
+      introspection_endpoint: https://keycloak.localhost/auth/realms/master/protocol/openid-connect/token/introspect
+      introspection_endpoint_auth_method: null
+      logout_path: /logout
+      realm: kong
+      recovery_page_path: null
+      redirect_after_logout_uri: /
+      redirect_uri: null
+      response_type: code
+      revoke_tokens_on_logout: "no"
+      scope: openid
+      session_secret: null
+      ssl_verify: "no"
+      timeout: null
+      token_endpoint_auth_method: client_secret_post
+      unauth_action: auth
+      userinfo_header_name: X-USERINFO
+    enabled: true
+    protocols:
+    - grpc
+    - grpcs
+    - http
+    - https
