@@ -230,8 +230,9 @@ services:
     volumes:
       - ./compose/envoy/envoy.yaml:/config/envoy.yaml
     environment:
-      - DEBUG_LEVEL=info
-      - SERVICE_NAME=petstore-api
+      - DEBUG_LEVEL=debug
+      - SERVICE_NAME=petstore
+      - SERVICE_HOST=petstore-api
       - SERVICE_PORT=8080
       - OPA_HOST=petstore-opa
 
@@ -260,8 +261,9 @@ services:
     volumes:
       - ./compose/envoy/envoy.yaml:/config/envoy.yaml
     environment:
-      - DEBUG_LEVEL=info
-      - SERVICE_NAME=myservice-api
+      - DEBUG_LEVEL=debug
+      - SERVICE_NAME=myservice
+      - SERVICE_HOST=myservice-api
       - SERVICE_PORT=80
       - OPA_HOST=myservice-opa
 

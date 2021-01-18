@@ -20,6 +20,32 @@ static_resources:
                         - match: { prefix: "/" }
                           route: { cluster: service }
                 http_filters:
+                  - name: envoy.filters.http.jwt_authn
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+                      providers:
+                        keycloak:
+                          from_headers:
+                            - name: x-access-token
+                          issuer: https://keycloak.localhost/auth/realms/master
+                          audiences:
+                            - ${SERVICE_NAME}
+                          remote_jwks:
+                            http_uri:
+                              # Use non-HTTPS address as https://keycloak.localhost presents self-signed cert by Traefik
+                              # (request to fetch remote jwks will fail if using HTTPS)
+                              # HTTPS is necessary for security in production use
+                              uri: http://keycloak:8080/auth/realms/master/protocol/openid-connect/certs
+                              cluster: keycloak
+                              timeout: 0.5s
+                            cache_duration:
+                              seconds: 300
+                          forward: true
+                      rules:
+                        - match:
+                            prefix: /
+                          requires:
+                            provider_name: keycloak
                   - name: envoy.filters.http.ext_authz
                     typed_config:
                       "@type": type.googleapis.com/envoy.extensions.filters.http.ext_authz.v3.ExtAuthz
@@ -35,8 +61,24 @@ static_resources:
     - name: service
       connect_timeout: 0.25s
       type: strict_dns
-      lb_policy: round_robin
-      hosts:
-        socket_address:
-          address: ${SERVICE_NAME}
-          port_value: ${SERVICE_PORT}
+      load_assignment:
+        cluster_name: service
+        endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: ${SERVICE_HOST}
+                    port_value: ${SERVICE_PORT}
+    - name: keycloak
+      connect_timeout: 0.25s
+      type: strict_dns
+      load_assignment:
+        cluster_name: keycloak
+        endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: keycloak
+                    port_value: 8080
