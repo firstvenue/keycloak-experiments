@@ -1,0 +1,40 @@
+version: '3'
+
+volumes:
+  keycloak_data:
+      driver: local
+
+networks:
+  default:
+    external:
+      name: keycloak-multigateway_default
+
+services:
+  keycloak:
+    image: jboss/keycloak:9.0.3
+    depends_on:
+      - keycloak-db
+    environment:
+      DB_VENDOR:   POSTGRES
+      DB_ADDR:     keycloak-db
+      DB_PORT:     5432
+      DB_DATABASE: keycloak
+      DB_USER:     keycloak
+      DB_PASSWORD: password
+      KEYCLOAK_USER: admin
+      KEYCLOAK_PASSWORD: password
+    labels:
+      - "traefik.enable=true"
+      - "traefik.tcp.routers.keycloak.rule=HostSNI(`keycloak.localhost`)"
+      - "traefik.tcp.routers.keycloak.tls.passthrough=true"
+      - "traefik.tcp.routers.keycloak.entrypoints=websecure"
+      - "traefik.tcp.services.keycloak.loadbalancer.server.port=8443"
+
+  keycloak-db:
+    image: postgres:9.6
+    volumes:
+      - keycloak_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: password

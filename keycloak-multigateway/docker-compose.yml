@@ -5,8 +5,6 @@ volumes:
       driver: local
   kongY_data:
       driver: local
-  keycloak_data:
-      driver: local
 
 services:
   traefik:
@@ -30,7 +28,9 @@ services:
           # This allows the other containers to also reach the services through
           # this public address (as opposed to using hostnames)
           - kongX.localhost
+          - petstore.kongX.localhost
           - kongY.localhost
+          - myservice.kongY.localhost
           - keycloak.localhost
 
   # Kong
@@ -77,6 +77,7 @@ services:
       KONG_PG_USER: ${KONG_PG_USER:-kong}
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_LOG_LEVEL: debug
       KONG_PLUGINS: oidc
     ports:
       - "8001:8001/tcp"
@@ -197,88 +198,3 @@ services:
     environment:
       NO_AUTH: "true"
       KONGA_SEED_KONG_NODE_DATA_SOURCE_FILE: /connections.data
-
-  keycloak-db:
-    image: postgres
-    volumes:
-      - keycloak_data:/var/lib/postgresql/data
-    environment:
-      POSTGRES_DB: keycloak
-      POSTGRES_USER: keycloak
-      POSTGRES_PASSWORD: password
-
-  keycloak:
-    image: quay.io/keycloak/keycloak:12.0.1
-    depends_on:
-      - keycloak-db
-    environment:
-      DB_VENDOR: POSTGRES
-      DB_ADDR: keycloak-db
-      DB_USER: keycloak
-      DB_PASSWORD: password
-      KEYCLOAK_USER: admin
-      KEYCLOAK_PASSWORD: password
-    labels:
-      - "traefik.enable=true"
-      - "traefik.tcp.routers.keycloak.rule=HostSNI(`keycloak.localhost`)"
-      - "traefik.tcp.routers.keycloak.tls.passthrough=true"
-      - "traefik.tcp.routers.keycloak.entrypoints=websecure"
-      - "traefik.tcp.services.keycloak.loadbalancer.server.port=8443"
-
-  petstore-envoy:
-    build: ./compose/envoy
-    volumes:
-      - ./compose/envoy/envoy.yaml:/config/envoy.yaml
-    environment:
-      - DEBUG_LEVEL=debug
-      - SERVICE_NAME=petstore
-      - SERVICE_HOST=petstore-api
-      - SERVICE_PORT=8080
-      - OPA_HOST=petstore-opa
-
-  petstore-opa:
-    image: openpolicyagent/opa:0.25.2-envoy
-    volumes:
-      - ./compose/petstore/policy.rego:/config/policy.rego
-    command:
-      - "run"
-      - "--log-level=debug"
-      - "--log-format=json-pretty"
-      - "--server"
-      - "--set=plugins.envoy_ext_authz_grpc.addr=:9191"
-      - "--set=decision_logs.console=true"
-      - "/config/policy.rego"
-
-  petstore-api:
-    image: openapitools/openapi-petstore
-    environment:
-      - OPENAPI_BASE_PATH=/v3
-      - DISABLE_API_KEY=1
-      - DISABLE_OAUTH=1
-
-  myservice-envoy:
-    build: ./compose/envoy
-    volumes:
-      - ./compose/envoy/envoy.yaml:/config/envoy.yaml
-    environment:
-      - DEBUG_LEVEL=debug
-      - SERVICE_NAME=myservice
-      - SERVICE_HOST=myservice-api
-      - SERVICE_PORT=80
-      - OPA_HOST=myservice-opa
-
-  myservice-opa:
-    image: openpolicyagent/opa:0.25.2-envoy
-    volumes:
-      - ./compose/myservice/policy.rego:/config/policy.rego
-    command:
-      - "run"
-      - "--log-level=debug"
-      - "--log-format=json-pretty"
-      - "--server"
-      - "--set=plugins.envoy_ext_authz_grpc.addr=:9191"
-      - "--set=decision_logs.console=true"
-      - "/config/policy.rego"
-
-  myservice-api:
-    build: ./compose/myservice
