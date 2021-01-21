@@ -1,15 +1,31 @@
-from typing import Optional
+from typing import Optional, List
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header
 
-app = FastAPI()
+import requests
 
+PETSTORE_URL = "https://petstore.kongx.localhost/v3/pet"
 
-@app.get("/")
-def read_root():
-    return {"Hello": "World"}
+app = FastAPI(
+    title="My Service",
+    docs_url="/"
+)
 
+@app.get("/whoami")
+def whoami(x_username: Optional[str] = Header(None)):
+    """Returns value of `preferred_username` claim in access token"""
+    if x_username:
+        return f"Hello {x_username}!"
+    else:
+        return "I don't have your username"
 
-@app.get("/items/{item_id}")
-def read_item(item_id: int, q: Optional[str] = None):
-    return {"item_id": item_id, "q": q}
+@app.post("/addMultiplePets", status_code=201)
+def add_multiple_pets(names: List[str] = ["fido", "bailey", "max"],
+                      x_access_token = Header(None)):
+    """Add multiple pets. Requires `pet` role"""
+    for name in names:
+        requests.post(PETSTORE_URL,
+                      json={"name": name, "status": "available"},
+                      headers={"x-access-token": x_access_token},
+                      verify=False)
+    return x_access_token
