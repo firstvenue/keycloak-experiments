@@ -27,6 +27,8 @@ static_resources:
                         keycloak:
                           from_headers:
                             - name: x-access-token
+                            - name: authorization
+                              value_prefix: Bearer
                           issuer: https://keycloak.localhost/auth/realms/master
                           audiences:
                             - ${SERVICE_NAME}

@@ -4,9 +4,9 @@ import input.attributes.request.http as http_request
 
 default allow = false
 
-# Decode access token from "x-access-token" header
+# Decode access token from "authorization" header
 token = payload {
-    encoded := http_request.headers["x-access-token"]
+    [_, encoded] := split(http_request.headers["authorization"], " ")
     [_, payload, _] := io.jwt.decode(encoded)
 }
 

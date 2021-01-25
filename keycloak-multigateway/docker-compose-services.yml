@@ -42,7 +42,7 @@ services:
     volumes:
       - ./compose/envoy/envoy.yaml:/config/envoy.yaml
     environment:
-      - DEBUG_LEVEL=info
+      - DEBUG_LEVEL=debug
       - SERVICE_NAME=myservice
       - SERVICE_HOST=myservice-api
       - SERVICE_PORT=80
