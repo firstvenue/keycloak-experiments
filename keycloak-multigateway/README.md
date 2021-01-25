@@ -40,11 +40,9 @@ docker-compose-services.yml`.
 
 Next we will configure both Kong instances, using [deck](https://github.com/Kong/deck) to load the relevant configs:
 ```
-cat compose/kong/kongx_config.yaml | docker run -i --rm --network host kong/deck --kong-addr http://localhost:8001 sync
--s -
+cat compose/kong/kongx_config.yaml | docker run -i --rm --network host kong/deck --kong-addr http://localhost:8001 sync -s -
 
-cat compose/kong/kongy_config.yaml | docker run -i --rm --network host kong/deck --kong-addr http://localhost:9001 sync
--s -
+cat compose/kong/kongy_config.yaml | docker run -i --rm --network host kong/deck --kong-addr http://localhost:9001 sync -s -
 ```
 
 You can log into Konga at `https://localhost:1337`. Click "Connections" and select either KongX or KongY. Notice that
