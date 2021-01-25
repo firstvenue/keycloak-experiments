@@ -1,8 +1,10 @@
+import logging
 from typing import Optional, List
 
-from fastapi import FastAPI, Header
-
+from fastapi import FastAPI, Header, HTTPException
 import requests
+
+logger = logging.getLogger(__name__)
 
 PETSTORE_URL = "https://petstore.kongx.localhost/v3/pet"
 
@@ -10,6 +12,7 @@ app = FastAPI(
     title="My Service",
     docs_url="/"
 )
+
 
 @app.get("/whoami")
 def whoami(x_username: Optional[str] = Header(None)):
@@ -19,13 +22,17 @@ def whoami(x_username: Optional[str] = Header(None)):
     else:
         return "I don't have your username"
 
+
 @app.post("/addMultiplePets", status_code=201)
 def add_multiple_pets(names: List[str] = ["fido", "bailey", "max"],
-                      x_access_token = Header(None)):
+                      authorization=Header(None)):
     """Add multiple pets. Requires `pet` role"""
     for name in names:
-        requests.post(PETSTORE_URL,
-                      json={"name": name, "status": "available"},
-                      headers={"x-access-token": x_access_token},
-                      verify=False)
-    return x_access_token
+        r = requests.post(PETSTORE_URL,
+                          json={"name": name, "status": "available"},
+                          headers={"authorization": authorization},
+                          verify=False)
+        if r.status_code == 200:
+            logger.info(f"Successfully added pet {name}")
+        else:
+            raise HTTPException(status_code=400, detail="Error when adding pet to petstore")
