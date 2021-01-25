@@ -34,5 +34,7 @@ def add_multiple_pets(names: List[str] = ["fido", "bailey", "max"],
                           verify=False)
         if r.status_code == 200:
             logger.info(f"Successfully added pet {name}")
+        elif r.status_code == 403:
+            raise HTTPException(status_code=403, detail="Error adding pets. Check that user has permission.")
         else:
-            raise HTTPException(status_code=400, detail="Error when adding pet to petstore")
+            raise HTTPException(status_code=400, detail="Error adding pets to petstore")
